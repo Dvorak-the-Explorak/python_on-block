@@ -51,7 +51,12 @@ def on(prefix):
 		#get the newly created function from locals
 		new_f = locals()[fname]
 
-		return new_f
+		new_f()
+
+
+		def oops_janky_hack(*args, **kwargs):
+			raise NotImplementedError("Sorry, 'on blocks' are a janky hack, you shouldn't call any function decorated to be an on block.  ")
+		return oops_janky_hack
 	return wrap
 
 def immediate(f):
@@ -60,14 +65,9 @@ def immediate(f):
 	f()
 	return void
 
-@on("turtle.")
-def hello_world():
-	print("Hello world")
-
 
 @on("turtle.")
-def global_turtle_code():
+def a():
 	setup(1000, 1000)
 	forward(100)
 	hideturtle()
-	done()
