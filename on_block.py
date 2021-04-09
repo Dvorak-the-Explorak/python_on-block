@@ -21,41 +21,37 @@ def insert_after_whitespace(string, add):
 	return string[:i] + add + string[i:]
 
 
-
+#probably only works on top level function definitions
 def on(prefix):
 	def wrap(f):
 		import inspect
-		def result(*args, **kwargs):
-			code = f.__code__
-			fname = f.__name__
-			filename = code.co_filename
-			lineno = code.co_firstlineno
-			linemap = code.co_lnotab
+
+		# name of the function
+		#	we could pull this from the code by searching for the 'def' line
+		fname = f.__name__
 
 
-			py_code_lines = inspect.getsource(f).split("\n")
-			py_code = ""
-			first = True
-			for line in py_code_lines:
-				#ignore empty lines and decorators
-				if line.isspace() or len(line) == 0 or line[0] == "@":
-					continue
-				#don't prefix the def line
-				if first:	
-					print("FIRST:", line)
-					py_code = line + '\n'
-					first = False
-					continue
-				py_code += insert_after_whitespace(line, prefix) + '\n'
+		py_code_lines = inspect.getsource(f).split("\n")
+		py_code = ""
+		first = True
+		for line in py_code_lines:
+			#ignore empty lines and decorators
+			if line.isspace() or len(line) == 0 or line[0] == "@":
+				continue
+			#don't prefix the def line
+			if first:	
+				py_code = line + '\n'
+				first = False
+				continue
+			py_code += insert_after_whitespace(line, prefix) + '\n'
 
-			#execute the modified def code
-			exec(py_code)
+		#execute the modified def code
+		exec(py_code)
 
-			#get the newly created function from locals
-			new_f = locals()[fname]
+		#get the newly created function from locals
+		new_f = locals()[fname]
 
-			return new_f(*args, **kwargs)
-		return result
+		return new_f
 	return wrap
 
 def immediate(f):
@@ -75,6 +71,3 @@ def global_turtle_code():
 	forward(100)
 	hideturtle()
 	done()
-
-
-global_turtle_code()
