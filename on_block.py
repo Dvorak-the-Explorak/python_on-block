@@ -1,7 +1,9 @@
-# from turtle import *
-import turtle
 
 
+
+
+def just_say_yes(*args, **kwargs):
+	print("Yes")
 
 def describe(name, x):
 	print("=============")
@@ -20,12 +22,54 @@ def insert_after_whitespace(string, add):
 		i += 1
 	return string[:i] + add + string[i:]
 
+def interact_tree(src):
+	import ast
+	from itertools import dropwhile
+
+	tree = ast.parse(src.lstrip())
+
+	import code
+	variables = {**globals(), **locals()}
+	shell = code.InteractiveConsole(variables)
+	shell.interact()
+
+
 
 #probably only works on top level function definitions
-def on(prefix):
-	def wrap(f):
-		import inspect
+def on(target):
+	import ast
+	import turtle
+	import inspect 
+	from copy import deepcopy
 
+	this_decorator = fname = inspect.currentframe().f_code.co_name
+
+	class Attributer(ast.NodeTransformer):
+
+		def visit_Expr(self, node: ast.Expr):
+
+			if not isinstance(node.value, ast.Call) or not isinstance(node.value.func, ast.Name):
+				return node
+
+			#we have a raw function call like "setup(1000, 1000)"
+			func = node.value.func
+
+			# ignore calls that aren't attributes of target
+			if not eval(f"hasattr({target}, '{func.id}')"):
+				return node
+
+			# make a new function that is an attribute of turtle instead of a raw name
+			new_func = ast.Attribute(ast.Name(target, ast.Load()), func.id, ast.Load())
+
+			# copy the node
+			result = deepcopy(node)
+			# replace the function call with the new one, fix the line_no 
+			result.value.func = ast.fix_missing_locations(ast.copy_location(new_func, func))
+
+			return ast.copy_location(result, node)
+
+
+	def wrap(f):
 		# name of the function
 		#	we could pull this from the code by searching for the 'def' line
 		fname = f.__name__
@@ -33,20 +77,21 @@ def on(prefix):
 
 		py_code_lines = inspect.getsource(f).split("\n")
 		py_code = ""
-		first = True
-		for line in py_code_lines:
-			#ignore empty lines and decorators
-			if line.isspace() or len(line) == 0 or line[0] == "@":
-				continue
-			#don't prefix the def line
-			if first:	
-				py_code = line + '\n'
-				first = False
-				continue
-			py_code += insert_after_whitespace(line, prefix) + '\n'
 
-		#execute the modified def code
-		exec(py_code)
+		att = Attributer()
+
+		tree = ast.parse(inspect.getsource(f), '', 'exec')
+		#remove this decorator from the decorator list
+		decorators = tree.body[0].decorator_list
+		for dec in decorators:
+			if dec.func.id == this_decorator:
+				decorators.remove(dec)
+		
+
+		#replace raw function calls with attributes
+		tree = att.visit(tree)
+		code = compile(tree, "<string>", "exec")
+		exec(code)
 
 		#get the newly created function from locals
 		new_f = locals()[fname]
@@ -66,8 +111,17 @@ def immediate(f):
 	return void
 
 
-@on("turtle.")
+# from turtle import *
+import turtle
+turtle.setup()
+
+@on("turtle")
 def a():
-	setup(1000, 1000)
-	forward(100)
+	print("Hello, world")
+
+	for i in range(4):
+		forward(100)
+		left(90)
 	hideturtle()
+	
+turtle.done()
