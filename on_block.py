@@ -1,5 +1,4 @@
-
-
+#TODO Add a preprocessing step that looks for "on ___:" blocks instead of using decorators
 
 
 def just_say_yes(*args, **kwargs):
@@ -38,11 +37,26 @@ def interact_tree(src):
 #probably only works on top level function definitions
 def on(target):
 	import ast
-	import turtle
 	import inspect 
 	from copy import deepcopy
 
-	this_decorator = fname = inspect.currentframe().f_code.co_name
+	this_decorator = inspect.currentframe().f_code.co_name
+
+	def fixindentation(source):
+		lines = source.split('\n')
+
+		indentation = None
+		result = ''
+		for line in lines:
+			if line.isspace():
+				continue
+			if indentation is None:
+				indentation = len(line) - len(line.lstrip())
+			result += line[indentation:] + "\n"
+
+		return result
+
+		
 
 	class Attributer(ast.NodeTransformer):
 
@@ -54,9 +68,21 @@ def on(target):
 			#we have a raw function call like "setup(1000, 1000)"
 			func = node.value.func
 
-			# ignore calls that aren't attributes of target
-			if not eval(f"hasattr({target}, '{func.id}')"):
-				return node
+			try:
+				# ignore calls that aren't attributes of target
+				if not eval(f"hasattr({target}, '{func.id}')"):
+					return node
+			except NameError:
+				# If the target isn't defined, try to import it
+				try:
+					exec(f"import {target}")
+					if not eval(f"hasattr({target}, '{func.id}')"):
+						return node
+				except:
+					#if you can't import it, just allow all functions
+					pass
+
+
 
 			# make a new function that is an attribute of turtle instead of a raw name
 			new_func = ast.Attribute(ast.Name(target, ast.Load()), func.id, ast.Load())
@@ -79,8 +105,14 @@ def on(target):
 		py_code = ""
 
 		att = Attributer()
+		source = inspect.getsource(f)
 
-		tree = ast.parse(inspect.getsource(f), '', 'exec')
+		try:
+			tree = ast.parse(source, '', 'exec')
+		except IndentationError:
+			#TODO handle the missing scope?
+			tree = ast.parse(fixindentation(source), '', 'exec')
+
 		#remove this decorator from the decorator list
 		decorators = tree.body[0].decorator_list
 		for dec in decorators:
@@ -110,18 +142,17 @@ def immediate(f):
 	f()
 	return void
 
+if __name__ == "__main__":
+	# from turtle import *
+	import turtle
+	turtle.setup()
 
-# from turtle import *
-import turtle
-turtle.setup()
+	@on("turtle")
+	def a():
+		print("This won't be turned into turtle.print")
+		for i in range(4):
+			forward(100)
+			left(90)
+		hideturtle()
 
-@on("turtle")
-def a():
-	print("Hello, world")
-
-	for i in range(4):
-		forward(100)
-		left(90)
-	hideturtle()
-	
-turtle.done()
+	turtle.done()
