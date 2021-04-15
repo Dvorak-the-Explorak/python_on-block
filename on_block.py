@@ -43,6 +43,7 @@ def on(target):
 	this_decorator = inspect.currentframe().f_code.co_name
 
 	def fixindentation(source):
+		# unindents blocks of code in case on block is used nested within another block
 		lines = source.split('\n')
 
 		indentation = None
@@ -68,24 +69,11 @@ def on(target):
 			#we have a raw function call like "setup(1000, 1000)"
 			func = node.value.func
 
-			try:
-				# ignore calls that aren't attributes of target
-				if not eval(f"hasattr({target}, '{func.id}')"):
-					return node
-			except NameError:
-				# If the target isn't defined, try to import it
-				try:
-					exec(f"import {target}")
-					if not eval(f"hasattr({target}, '{func.id}')"):
-						return node
-				except:
-					#if you can't import it, just allow all functions
-					pass
+			if not hasattr(target, func.id):
+				return node
 
-
-
-			# make a new function that is an attribute of turtle instead of a raw name
-			new_func = ast.Attribute(ast.Name(target, ast.Load()), func.id, ast.Load())
+			# make a new function that is an attribute of target instead of a raw name
+			new_func = ast.Attribute(ast.Name(target.__name__, ast.Load()), func.id, ast.Load())
 
 			# copy the node
 			result = deepcopy(node)
@@ -147,7 +135,7 @@ if __name__ == "__main__":
 	import turtle
 	turtle.setup()
 
-	@on("turtle")
+	@on(turtle)
 	def a():
 		print("This won't be turned into turtle.print")
 		for i in range(4):
