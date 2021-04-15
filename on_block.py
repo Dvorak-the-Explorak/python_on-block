@@ -1,5 +1,5 @@
 #TODO Add a preprocessing step that looks for "on ___:" blocks instead of using decorators
-
+#TODO functions defined within the @on function definition don't make it out to global scope
 
 def just_say_yes(*args, **kwargs):
 	print("Yes")
@@ -12,14 +12,6 @@ def describe(name, x):
 	print(dir(x))
 	print("=============\n")
 
-def insert_after_whitespace(string, add):
-	if len(string) == 0:
-		return add
-
-	i = 0
-	while i < len(string) and string[i].isspace():
-		i += 1
-	return string[:i] + add + string[i:]
 
 def interact_tree(src):
 	import ast
@@ -33,8 +25,6 @@ def interact_tree(src):
 	shell.interact()
 
 
-
-#probably only works on top level function definitions
 def on(target):
 	import ast
 	import inspect 
@@ -53,6 +43,9 @@ def on(target):
 				continue
 			if indentation is None:
 				indentation = len(line) - len(line.lstrip())
+				# if the indentation is fine, just return the input
+				if indentation == 0:
+					return source
 			result += line[indentation:] + "\n"
 
 		return result
@@ -84,28 +77,19 @@ def on(target):
 
 
 	def wrap(f):
-		# name of the function
-		#	we could pull this from the code by searching for the 'def' line
-		fname = f.__name__
-
-
-		py_code_lines = inspect.getsource(f).split("\n")
-		py_code = ""
 
 		att = Attributer()
-		source = inspect.getsource(f)
 
-		try:
-			tree = ast.parse(source, '', 'exec')
-		except IndentationError:
-			#TODO handle the missing scope?
-			tree = ast.parse(fixindentation(source), '', 'exec')
+		tree = ast.parse(fixindentation(inspect.getsource(f)))
 
-		#remove this decorator from the decorator list
-		decorators = tree.body[0].decorator_list
+		decorators = f_tree.body[0].decorator_list
 		for dec in decorators:
-			if dec.func.id == this_decorator:
-				decorators.remove(dec)
+			if isinstance(dec, ast.Name):
+				if dec.id == this_decorator:
+					decorators.remove(dec)
+			elif isinstance(dec, ast.Call):
+				if dec.func.id == this_decorator:
+					decorators.remove(dec)
 		
 
 		#replace raw function calls with attributes
@@ -114,7 +98,7 @@ def on(target):
 		exec(code)
 
 		#get the newly created function from locals
-		new_f = locals()[fname]
+		new_f = locals()[f.__name__]
 
 		new_f()
 
@@ -124,23 +108,19 @@ def on(target):
 		return oops_janky_hack
 	return wrap
 
-def immediate(f):
-	def void(*args, **kwargs):
-		return None
-	f()
-	return void
-
 if __name__ == "__main__":
 	# from turtle import *
 	import turtle
 	turtle.setup()
 
 	@on(turtle)
-	def a():
+	def _():
 		print("This won't be turned into turtle.print")
-		for i in range(4):
-			forward(100)
-			left(90)
-		hideturtle()
+		def square():
+			for i in range(4):
+				forward(100)
+				left(90)
+			hideturtle()
+		square()
 
 	turtle.done()
