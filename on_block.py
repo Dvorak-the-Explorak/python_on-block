@@ -1,29 +1,6 @@
 #TODO Add a preprocessing step that looks for "on ___:" blocks instead of using decorators
 #TODO functions defined within the @on function definition don't make it out to global scope
 
-def just_say_yes(*args, **kwargs):
-	print("Yes")
-
-def describe(name, x):
-	print("=============")
-	print(name)
-	print(type(x))
-	print(x)
-	print(dir(x))
-	print("=============\n")
-
-
-def interact_tree(src):
-	import ast
-	from itertools import dropwhile
-
-	tree = ast.parse(src.lstrip())
-
-	import code
-	variables = {**globals(), **locals()}
-	shell = code.InteractiveConsole(variables)
-	shell.interact()
-
 def fixindentation(source):
 	# unindents blocks of code in case on block is used nested within another block
 	lines = source.split('\n')
@@ -118,23 +95,20 @@ def on_block(target):
 
 
 if __name__ == "__main__":
-	def testtt():
-		# from turtle import *
-		import turtle
-		turtle.setup()
+	# from turtle import *
+	import turtle
+	turtle.setup()
 
-		@on_block(turtle)
-		def _():
-			x = 10
-			print("This won't be turned into turtle.print")
-			forward(10)
-			def square():
-				for i in range(4):
-					forward(100)
-					left(90)
-				hideturtle()
-			square()
+	@on_block(turtle)
+	def _():
+		print("This won't be turned into turtle.print")
+		forward(10)
+		def square():
+			for i in range(4):
+				forward(100)
+				left(90)
+			hideturtle()
+		square()
 
 
-		turtle.done()
-	testtt()
+	turtle.done()

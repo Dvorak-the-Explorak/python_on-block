@@ -13,7 +13,7 @@ def fixindentation(source):
 
 	return result
 
-def append_bodies(f, g):
+def concatenate_bodies(f, g):
 	if g.__code__.co_argcount + g.__code__.co_kwonlyargcount > 0:
 		raise ValueError("Second function must take no arguments")
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 	def f():
 		print("f")
 		x = 10
-		
+
 	try:
 		print(x)
 	except:
