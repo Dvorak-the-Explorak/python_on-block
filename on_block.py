@@ -82,17 +82,10 @@ def on(target):
 
 		tree = ast.parse(fixindentation(inspect.getsource(f)))
 
-		decorators = f_tree.body[0].decorator_list
-		for dec in decorators:
-			if isinstance(dec, ast.Name):
-				if dec.id == this_decorator:
-					decorators.remove(dec)
-			elif isinstance(dec, ast.Call):
-				if dec.func.id == this_decorator:
-					decorators.remove(dec)
-		
+		# Don't run any decorators right now
+		tree.body[0].decorator_list = []
 
-		#replace raw function calls with attributes
+		# replace raw function calls with attributes
 		tree = att.visit(tree)
 		code = compile(tree, "<string>", "exec")
 		exec(code)
@@ -100,6 +93,15 @@ def on(target):
 		#get the newly created function from locals
 		new_f = locals()[f.__name__]
 
+
+		# TODO should we add this to closure or something instead
+		# add the target to the new function's globals
+		#	othewise target may not be defined when this decorator imported into a different module / used in a different scope
+		new_f.__globals__[target.__name__] = target
+		# We'd really like to give new_f the exact same context - globals and nonlocals etc - as f
+		# 		EG new_f.__globals__ = f.__globals__
+		#	but if for example turtle is defined in an enclosing function, and turtle is not used in f (before this decorator),
+		#	then turtle will not be pulled into the closure, and maybe can't be found from our reference to f...
 		new_f()
 
 
@@ -109,18 +111,21 @@ def on(target):
 	return wrap
 
 if __name__ == "__main__":
-	# from turtle import *
-	import turtle
-	turtle.setup()
+	def testtt():
+		# from turtle import *
+		import turtle
+		turtle.setup()
 
-	@on(turtle)
-	def _():
-		print("This won't be turned into turtle.print")
-		def square():
-			for i in range(4):
-				forward(100)
-				left(90)
-			hideturtle()
-		square()
+		@on(turtle)
+		def _():
+			print("This won't be turned into turtle.print")
+			forward(10)
+			def square():
+				for i in range(4):
+					forward(100)
+					left(90)
+				hideturtle()
+			square()
 
-	turtle.done()
+		turtle.done()
+	testtt()

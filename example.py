@@ -6,9 +6,9 @@ from on_block import on
 import turtle
 turtle.setup()
 
-@on("turtle")
+@on(turtle)
 def a():
-	print(xcor(), ycor())
+	# print(xcor(), ycor())
 	for i in range(4):
 		forward(100)
 		left(90)

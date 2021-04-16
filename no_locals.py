@@ -1,8 +1,17 @@
-def no_locals(f):
-	def captured(*a, **kw):
-		locals = {}
-		f(*a, **kw)
+def fixindentation(source):
+	# unindents blocks of code in case on block is used nested within another block
+	lines = source.split('\n')
 
+	indentation = None
+	result = ''
+	for line in lines:
+		if line.isspace():
+			continue
+		if indentation is None:
+			indentation = len(line) - len(line.lstrip())
+		result += line[indentation:] + "\n"
+
+	return result
 
 def append_bodies(f, g):
 	if g.__code__.co_argcount + g.__code__.co_kwonlyargcount > 0:
@@ -10,20 +19,6 @@ def append_bodies(f, g):
 
 	import ast
 	from inspect import getsource
-	def fixindentation(source):
-		# unindents blocks of code in case on block is used nested within another block
-		lines = source.split('\n')
-
-		indentation = None
-		result = ''
-		for line in lines:
-			if line.isspace():
-				continue
-			if indentation is None:
-				indentation = len(line) - len(line.lstrip())
-			result += line[indentation:] + "\n"
-
-		return result
 
 	f_tree = ast.parse(fixindentation(getsource(f)))
 	g_tree = ast.parse(fixindentation(getsource(g)))
@@ -57,33 +52,12 @@ def end_hook(hook):
 	#TODO this assumes the decorator is exactly this function (so can't construct new decorators from this)
 	this_decorator = inspect.currentframe().f_code.co_name
 
-	def fixindentation(source):
-		# unindents blocks of code in case on block is used nested within another block
-		lines = source.split('\n')
-
-		indentation = None
-		result = ''
-		for line in lines:
-			if line.isspace():
-				continue
-			if indentation is None:
-				indentation = len(line) - len(line.lstrip())
-			result += line[indentation:] + "\n"
-
-		return result
-
 	def wrap(f):
 		f_tree = ast.parse(fixindentation(inspect.getsource(f)))
 		hook_tree = ast.parse(fixindentation(inspect.getsource(hook)))
 
-
-		#remove this decorator from the decorator list
-		#TODO make this cleaner
-		decorators = f_tree.body[0].decorator_list
-		for dec in decorators:
-			if dec.func.id == this_decorator:
-				decorators.remove(dec)
-
+		# Don't apply any decorators right now
+		f_tree.body[0].decorator_list = []
 
 		# try:
 		#	f()
@@ -116,13 +90,13 @@ def end_hook(hook):
 
 
 def no_locals(f):
+	'''Decorator only.  Must be the first decorator applied (closest to def line)'''
+	if hasattr(f, "_no_locals") and f._no_locals:
+		return f
 
 	import ast
 	import inspect
 	from copy import deepcopy
-
-	#TODO this assumes the decorator is exactly this function (so can't construct new decorators from this)
-	this_decorator = inspect.currentframe().f_code.co_name
 
 	def fixindentation(source):
 		# unindents blocks of code in case on block is used nested within another block
@@ -139,21 +113,21 @@ def no_locals(f):
 
 		return result
 
-	f_tree = ast.parse(fixindentation(inspect.getsource(f)))
+	try:
+		f_source = inspect.getsource(f)
+	except OSError:
+		print(f"Warning: couldn't apply @no_locals to {f}, source couldn't be found")
+		# If we couldn't get the source, we may be applying the decorator for the second time.
+		return f
+
+	f_tree = ast.parse(fixindentation(f_source))
 	hook_tree = ast.parse(fixindentation(inspect.getsource(globalify)))
 
 
-	#remove this decorator from the decorator list
-	#TODO make this cleaner
-	decorators = f_tree.body[0].decorator_list
-	for dec in decorators:
-		if isinstance(dec, ast.Name):
-			if dec.id == this_decorator:
-				decorators.remove(dec)
-		elif isinstance(dec, ast.Call):
-			if dec.func.id == this_decorator:
-				decorators.remove(dec)
-
+	# Don't want any of the decorators to be applied here.  
+	# TODO could we force this to be the first decorator?
+	#		- somehow run this on the raw function and reapply any earlier decorators...
+	f_tree.body[0].decorator_list = []
 
 	# try:
 	#	f()
@@ -161,21 +135,20 @@ def no_locals(f):
 	#	hook()
 	try_wrap = ast.Try(body=deepcopy(f_tree.body[0].body) , handlers=[], orelse=[], finalbody=deepcopy(hook_tree.body[0].body))
 
-
 	f_tree.body[0].body = [try_wrap]
 
 	# change the def node to define a function called "_"
 	f_tree.body[0].name = "_"
 
 	tree = ast.fix_missing_locations(f_tree)
-	# print("HELLO")
-	# print(ast.unparse(tree))
 
 	code = compile(tree, "<string>", "exec")
 	exec(code)
 
 	#get the newly created function from locals
 	new_f = locals()["_"]
+
+	new_f._no_locals = True
 
 	return new_f
 
@@ -193,13 +166,21 @@ def globalify():
 	finally:
 		del frame
 
+def twice(f):
+	def result(*a, **kw):
+		f(*a, **kw)
+		f(*a, **kw)
+	return result
 
+
+#TODO jank decorators interact badly with other decorators
 if __name__ == "__main__":
+	@twice
 	@no_locals
 	def f():
+		print("f")
 		x = 10
-
-
+		
 	try:
 		print(x)
 	except:
@@ -207,7 +188,6 @@ if __name__ == "__main__":
 
 
 	f()
-
 
 	try:
 		print(x)
