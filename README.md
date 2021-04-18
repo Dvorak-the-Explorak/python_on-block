@@ -24,7 +24,7 @@ This project is badly thought out and badly structured
 I literally was so preoccupied with whether or not I could, I didn't stop to consider if I should.  
 
 
-## on_block.py functions
+## Decorators defined
 
 The @on_block(target) decorator is the attempt at creating this control block.  
   It converts any function call statements to calls to methods in target (whenever target has a method with the same name).  
@@ -32,7 +32,7 @@ The @on_block(target) decorator is the attempt at creating this control block.
 
 The @on(target) decorator can be used as a regular decorator.  
 
+no_locals spills the local variables defined inside the function into the calling scope
 
-
-## no_locals.opy functions
+immediate calls the function immediately instead of defining a function.  
 
