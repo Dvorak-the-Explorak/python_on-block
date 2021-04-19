@@ -2,8 +2,9 @@ import ast
 import inspect
 
 #TODO make a preprocessor that lets us use an "on object:" block syntax
-#TODO 
-
+#TODO make a recursive version of @on so that function calls are modified too?  sounds even more gross
+#TODO on_block disallows "import *" statements because it's still a function definition...
+#TODO only change names that don't already exist to turtle.?
 
 # A decorator which loads and modifies a functions AST instead of working with it as a python object. 
 #	They're super janky and can't be composed in the usual way, because they have no source for the next level to read.
@@ -28,13 +29,6 @@ class AstDecorator:
 		# change the def node to define a function called "_"
 		tree.body[0].name = "_"
 
-		# print(ast.dump(tree))
-
-
-		def astifyVariable(x):
-			# print(type(x))
-
-			return ast.Constant(value=1, kind=None)
 		# Get the context of this call as best we can
 		#TODO fix the closure issue 
 		#		(closure variables are already captured / not by now so we can't grab them from stack frames)
@@ -71,7 +65,6 @@ class AstDecorator:
 		AstDecorator.endpoints.add(self.__call__.__code__)
 
 		# apply the post_wrap function
-		# pre_vals = locals()
 		new_f = self.post_wrap(new_f)
 
 		# allow the wrapped function to act as the top level for the local vars to bubble up to
@@ -123,31 +116,6 @@ def on(target):
 	from copy import deepcopy
 
 	class Attributer(ast.NodeTransformer):
-		#turns function calls into attributes
-
-		# def visit_Expr(self, node: ast.Expr):
-
-		# 	# if the node isn't a raw function call or the function isn't just a name don't bother
-		# 	if not isinstance(node.value, ast.Call) or not isinstance(node.value.func, ast.Name):
-		# 		return node
-
-		# 	#we have a raw function call like "setup(1000, 1000)"
-		# 	func = node.value.func
-
-		# 	if not hasattr(target, func.id):
-		# 		return node
-
-		# 	# make a new function that is an attribute of target instead of a raw name
-		# 	new_func = ast.Attribute(ast.Name(target.__name__, ast.Load()), func.id, ast.Load())
-
-		# 	# copy the node
-		# 	result = deepcopy(node)
-		# 	# replace the function call with the new one, fix the line_no 
-		# 	result.value.func = ast.fix_missing_locations(ast.copy_location(new_func, func))
-
-		# 	return ast.copy_location(result, node)
-
-
 		def visit_Name(self, node: ast.Name):
 
 			# if the name isn't an attribute of the target, we can't replace it
@@ -155,10 +123,7 @@ def on(target):
 				return node
 
 			# make a new node that is an attribute of target instead of a raw name
-			result = ast.Attribute(ast.Name(target.__name__, ast.Load()), node.id, ast.Load())
-
-			# replace the function call with the new one, fix the line_no 
-			# return ast.fix_missing_locations(ast.copy_location(result, node))
+			result = ast.Attribute(ast.Name(target.__name__, ast.Load()), node.id, node.ctx)
 
 			return ast.copy_location(result, node)
 
@@ -167,7 +132,7 @@ def on(target):
 
 	def post_func(f):
 		#TODO should we put the target in locals/args instead of globals?
-		#		Probably no for same reason as 
+		#		Probably no for same reason as the scoping fix
 		f.__globals__[target.__name__] = target
 		return f
 

@@ -30,11 +30,12 @@ del localvar
 def double():
 	double_nonlocal = "hello"
 	def nested():
+		
 		nonlocal_variable = "hello"
 		@on_block(turtle)
 		def _():
 			localvar = 100
-			# print(xcor(), ycor())
+			print(nonlocal_variable)
 			speed("fastest")
 			print("This won't be converted to 'turtle.print'")
 			for i in range(4):
@@ -69,5 +70,8 @@ try:
 	print(x)
 except:
 	print("x not defined after @no_locals function called")
+
+
+
 
 turtle.done()
