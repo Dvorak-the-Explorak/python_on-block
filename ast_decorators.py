@@ -1,20 +1,22 @@
 import ast 
 import inspect
 
+#TODO make a preprocessor that lets us use an "on object:" block syntax
+#TODO 
 
 
 # A decorator which loads and modifies a functions AST instead of working with it as a python object. 
 #	They're super janky and can't be composed in the usual way, because they have no source for the next level to read.
+#TODO in compiling the modified AST, source could be supplied / the ast could be stored to be used for future modifications...
 class AstDecorator:
 	endpoints = set()
+
 	
 	def __init__(self, ast_func, post_wrap = lambda x: x):
 		self.ast_func = ast_func
 		self.post_wrap = post_wrap
 
 	def __call__(self, f):
-		locals_capture = "True"
-
 		tree = ast.parse(fixindentation(inspect.getsource(f)))
 
 		# Don't run any decorators right now
@@ -26,15 +28,46 @@ class AstDecorator:
 		# change the def node to define a function called "_"
 		tree.body[0].name = "_"
 
+		# print(ast.dump(tree))
+
+
+		def astifyVariable(x):
+			# print(type(x))
+
+			return ast.Constant(value=1, kind=None)
+		# Get the context of this call as best we can
+		#TODO fix the closure issue 
+		#		(closure variables are already captured / not by now so we can't grab them from stack frames)
+		from inspect import currentframe, getframeinfo
+		try:
+			frame = currentframe()
+			frame = frame.f_back
+			allvars = {}
+			while frame is not None:
+				allvars.update(frame.f_locals)
+				frame = frame.f_back
+		finally:
+			del frame
+
+		# Fix the line numbers required to compile the ast
 		tree = ast.fix_missing_locations(tree)
 
+		# Compile the ast into a code object and execute
 		code = compile(tree, "<string>", "exec")
+
 		exec(code)
 
 		# get the newly created function from locals
 		new_f = locals()["_"]
 
+		# Add the context of the code that called this to the context of the function
+		#TODO should this only be for no_locals? 
+		#		no because we're moving the function definition elsewhere and have to cover our tracks, right?
+		new_f.__globals__.update(allvars)
+
+
 		# allow this function to act as the top level for the local vars to bubble up to
+		#	- must be after the scope modification (I assume the __code__ object changes)
 		AstDecorator.endpoints.add(self.__call__.__code__)
 
 		# apply the post_wrap function
@@ -57,16 +90,6 @@ class AstDecorator:
 
 		return AstDecorator(ast_func, post_wrap)
 
-
-# Has to be the last AstDecorator applied
-def immediate():
-	def ast_func(tree):
-		return tree
-	def post_wrap(f):
-		return f()
-	return AstDecorator(ast_func, post_wrap)
-immediate = immediate()#eww js style why did I do this
-
 def fixindentation(source):
 	# unindents blocks of code in case on block is used nested within another block
 	lines = source.split('\n')
@@ -84,6 +107,15 @@ def fixindentation(source):
 		result += line[indentation:] + "\n"
 
 	return result
+
+# Has to be the last AstDecorator applied
+def immediate():
+	def ast_func(tree):
+		return tree
+	def post_wrap(f):
+		return f()
+	return AstDecorator(ast_func, post_wrap)
+immediate = immediate()#eww js style why did I do this
 
 def on(target):
 	import ast
@@ -117,6 +149,7 @@ def on(target):
 		return Attributer().visit(tree)
 
 	def post_func(f):
+		#TODO should we put the target in locals/args instead of globals?
 		f.__globals__[target.__name__] = target
 		return f
 
@@ -151,22 +184,23 @@ def no_locals():
 
 		from inspect import currentframe
 
-		frame = currentframe()
-
 		# search for the function noted as the upper endpoint
-		x = frame
-		while x is not None:
-			if x.f_code in AstDecorator.endpoints:
-				break
-			
-			x = x.f_back
-		else:
-			raise SyntaxError("Couldn't find the upper endpoint for locals to bubble up to")
+		x = currentframe()
 
 		try:
-			x.f_back.f_locals.update(vals)
+			while x is not None:
+				if x.f_code in AstDecorator.endpoints:
+					break
+				
+				x = x.f_back
+			else:
+				raise SyntaxError("Couldn't find the upper endpoint for locals to bubble up to")
+
+			# Adding to the function's globals because the locals has weird issues when you try to update it
+			#	This won't send the vals into globals, just the function's view of the globals (it seems)
+			#TODO verify that using f_globals doesn't break anything
+			x.f_back.f_globals.update(vals)
 		finally:
-			del frame
 			del x
 
 	def ast_func(tree):
@@ -188,3 +222,6 @@ def no_locals():
 
 	return AstDecorator(ast_func, post_wrap)
 no_locals = no_locals()
+
+if __name__ == '__main__':
+	import example
