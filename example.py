@@ -11,7 +11,7 @@ def close_turtle_window(*args):
 @on_block(turtle)
 def _():
 	localvar = 100
-	# print(xcor(), ycor())
+	print(xcor(), ycor())
 	speed("fastest")
 	print("This won't be converted to 'turtle.print'")
 	for i in range(4):

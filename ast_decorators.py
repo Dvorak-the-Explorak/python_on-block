@@ -123,25 +123,42 @@ def on(target):
 	from copy import deepcopy
 
 	class Attributer(ast.NodeTransformer):
+		#turns function calls into attributes
 
-		def visit_Expr(self, node: ast.Expr):
+		# def visit_Expr(self, node: ast.Expr):
 
-			if not isinstance(node.value, ast.Call) or not isinstance(node.value.func, ast.Name):
+		# 	# if the node isn't a raw function call or the function isn't just a name don't bother
+		# 	if not isinstance(node.value, ast.Call) or not isinstance(node.value.func, ast.Name):
+		# 		return node
+
+		# 	#we have a raw function call like "setup(1000, 1000)"
+		# 	func = node.value.func
+
+		# 	if not hasattr(target, func.id):
+		# 		return node
+
+		# 	# make a new function that is an attribute of target instead of a raw name
+		# 	new_func = ast.Attribute(ast.Name(target.__name__, ast.Load()), func.id, ast.Load())
+
+		# 	# copy the node
+		# 	result = deepcopy(node)
+		# 	# replace the function call with the new one, fix the line_no 
+		# 	result.value.func = ast.fix_missing_locations(ast.copy_location(new_func, func))
+
+		# 	return ast.copy_location(result, node)
+
+
+		def visit_Name(self, node: ast.Name):
+
+			# if the name isn't an attribute of the target, we can't replace it
+			if not hasattr(target, node.id):
 				return node
 
-			#we have a raw function call like "setup(1000, 1000)"
-			func = node.value.func
+			# make a new node that is an attribute of target instead of a raw name
+			result = ast.Attribute(ast.Name(target.__name__, ast.Load()), node.id, ast.Load())
 
-			if not hasattr(target, func.id):
-				return node
-
-			# make a new function that is an attribute of target instead of a raw name
-			new_func = ast.Attribute(ast.Name(target.__name__, ast.Load()), func.id, ast.Load())
-
-			# copy the node
-			result = deepcopy(node)
 			# replace the function call with the new one, fix the line_no 
-			result.value.func = ast.fix_missing_locations(ast.copy_location(new_func, func))
+			# return ast.fix_missing_locations(ast.copy_location(result, node))
 
 			return ast.copy_location(result, node)
 
@@ -150,6 +167,7 @@ def on(target):
 
 	def post_func(f):
 		#TODO should we put the target in locals/args instead of globals?
+		#		Probably no for same reason as 
 		f.__globals__[target.__name__] = target
 		return f
 
@@ -157,20 +175,10 @@ def on(target):
 
 
 def on_block(target):
+	# Tries to create a code block by pushing locally defined variables out of the function when it's done,
+	#	and calling the function immediately
 
 	return no_locals * on(target) * immediate
-
-	def wrap(f):
-
-		decorators = no_locals() * on(target)
-		g = decorators(f)
-		g()
-
-		def oops_janky_hack(*args, **kwargs):
-			raise NotImplementedError("Attempted to call an @on_block.  Use @on if you want to actually define a function.  ")
-		return oops_janky_hack
-
-	return wrap
 
 def no_locals():
 	import ast
